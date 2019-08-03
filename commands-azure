@@ -1,0 +1,104 @@
+#---------------------BUILD and DEPLOY AZ Cloud
+docker build -t api-herois .
+docker run -p 3000:3000  --link mongodb:mongodb -e MONGO_URL=mongodb api-herois
+docker run -d --name mongodb mongo:3.5
+docker build -t orixaliorus/api-herois:v1 .
+docker tag api-herois orixaliorus/api-herois:v1
+docker push orixaliorus/api-herois:v1
+
+AZURE
+docker tag orixaliorus/api-herois:v1 k8soriximages.azurecr.io/api-herois:v1
+docker push k8soriximages.azurecr.io/api-herois:v1
+
+#---------------------Create Container Services
+az container create --resource-group k8s-curso \
+    --name mongodb --image mongo:3.5 \
+    --cpu 1 --memory 1\
+    --port 27017 \
+    --ip-address public 
+az container logs --resource-group k8s-curso --name mongodb
+az container show --resource-group k8s-curso --name mongodb --query ipAddress.ip
+MONGO_URL=52.224.203.27
+
+az container create --resource-group k8s-curso \
+    --name api-herois --image k8soriximages.azurecr.io/api-herois:v1 \
+    --cpu 1 --memory 1\
+    --port 3000 \
+    --environment-variables MONGO_URL=52.224.203.27 \
+    --registry-username k8soriximages \
+    --registry-password b/0DdKC4FOpvA7mhd5Mil27O9kYG7byL \
+    --ip-address public 
+az container logs --resource-group k8s-curso --name api-herois
+az container show --resource-group k8s-curso --name api-herois --query ipAddress.ip
+52.224.188.137
+
+#--------------------------- AKS - Cluster
+
+az aks create -g k8s-curso \
+    --name k8s-cluster \
+    --dns-name-prefix k8s-cluster \
+    --generate-ssh-keys \
+    --node-count 2 \
+    --node-vm-size Standard_B2s
+
+az aks get-credentials --resource-group k8s-curso --name k8s-cluster
+az aks browse --resource-group k8s-curso --name k8s-cluster
+
+# Adicionar regra para manipulacao de da Dashboard
+kubectl create clusterrolebinding kubernetes-dashboard -n kube-system --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
+
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBdWQBQh19kIqPcCp/bRL+u104Bj7GE8DsZZP/DrBkAsg7sezxQcu6p04LPLPWq2FUDwv3xt3Ft7WlVSKUX1XFDS3MaA7EzkRY2mtalWAbGPxy2by6EVH0yOzERg9TP0tN4ZSjsGXk73shqkMjLgv9D7If7ELIVDdQtFkESfkXqJDgwmleUjeYE7V0+IhEBIE37AbjzkZbIIEUj+TuRWy+jf0wBYQjjqRu3fEgUscQJWp9Mo8JATaZrFp29GYoO+WA4yrJ7yYhxiQVMMm0mbwNdKi5IaWPPRB1GFJOvivKM80+gInugUiQ12npUPDJ/hsUQxgwqgjHrIKoGGL5HuQN brunosilva@bsnascimento\n    
+
+#------------------------ K8S - Pods
+kubectl run mongodb --image mongo:3.5 --port 27017
+
+kubectl get pods
+
+kubectl delete pod mongodb-b48794dd4-m7n22
+kubectl describe pods mongodb-b48794dd4-m7n22
+kubectl top pod mongodb-b48794dd4-m7n22
+
+kubectl get pods --output=wide
+
+MONGO_URL=10.244.0.8
+
+kubectl run api-heroes --image orixaliorus/api-herois:v1 \
+    --env "MONGO_URL=10.244.0.8" \
+    --env "PORT=4000" \
+    --replicas 2 
+
+kubectl logs mongodb-b48794dd4-m7n22    
+
+kubectl expose pod api-heroes-9dwgx --port 4000 --type LoadBalancer
+
+kubectl get service -w
+
+-- declarativo
+arquivo .json ou .yml
+
+kubectl create -f <name_file>.json
+kubectl delete pod <name>
+kubectl describe pod <name>
+
+**--------------exec command
+kubectl exec -it <name_pod> -- /bin/bash
+kubectl exec -it <name_pod> -- /bin/sh
+
+
+
+
+
+
+#------------------ GENERATE SECRET PRIVATE keys
+
+kubectl create secret docker-registry my-secret \
+    --docker-server=https://index.docker.io/v1/ \
+    --docker-username=orixaliorus \
+    --docker-password=brq@2501 \
+    --docker-email=balde-falcon@hotmail.com
+
+kubectl create secret generic regcred \
+    --from-file=.dockerconfigjson=/home/brunosilva/.docker/config.json \
+    --type=kubernetes.io/dockerconfigjson
+
+#------------------ GENERATE SECRET PRIVATE keys
